@@ -1,0 +1,83 @@
+clear, clc
+
+%% dgp
+T = 50;
+I = 200; % replications
+Nsim = 5000; % number of simulations for calculating critival values
+alpha = 0.05;
+beta0=0;
+rho = 0.8;
+mu = 0; 
+sig = 1;
+K =24;
+p = length(mu);
+
+seed = 872013;
+
+v = zeros(T,1);
+u = zeros(T,1);
+reject_cmax = zeros(I,1);
+reject_pp = zeros(I,1);
+power_cmax = zeros(21,1);
+power_pp = zeros(21,1);
+
+
+phi = zeros(T,K);
+for t=1:T  % basis funcitons
+    for j=1:K/2
+        phi(t,2*j-1) = sqrt(2)*cos(2*j*pi*t/T);
+        phi(t,2*j) = sqrt(2)*sin(2*j*pi*t/T);
+    end
+end
+
+% cv_cmax = cmax(alpha,K,10,Nsim,5000);
+b = -0.5:0.05:0.5;
+b = b';
+B = length(b);
+for n_b = 11
+    bb = b(n_b);
+    
+    parfor (i=1:I,16)
+        i
+        rng(seed+i,'twister');
+        e = single(normrnd(0,1,[T,1]));
+        u(1)  = e(1);
+        X = single(normrnd(mu,sig,[T,1]));
+        for t=2:T
+            u(t) = rho*u(t-1) + e(t);
+        end
+        Y = bb*X + u;
+
+        %% cmax test
+%         vhat = X.*(Y-X*beta0);
+%         F = (sum(vhat,1)).^2.*(K^-1*(sum((phi'*vhat).^2,1)).^-1);
+%         reject_cmax(i) = F>cv_cmax;
+
+        %% pp test
+        Xtilde = [ones(T,1),X];
+        cv_pp = ppAlgorithm(alpha,beta0,Nsim,Xtilde);
+        J = 1:T-1;
+        J = J';
+        Mn = floor(T/10); 
+        w = 2*(ones(T-1,1) - J/Mn).*(abs(J/Mn)<1);
+
+        beta = (Xtilde'*Xtilde)^-1*Xtilde'*Y;
+
+        Psi = zeros(p+1,p+1);
+        vhat_pp = Xtilde.*((Y-Xtilde*beta)*ones(1,size(beta,1)));
+        for j=1:T-1
+            Psi = Psi +T^-1*w(j)*(vhat_pp(j+1:T,:)'*vhat_pp(1:T-j,:));
+        end
+        Psi = Psi' + T^-1*(vhat_pp'*vhat_pp);
+        Tw = (norm(Psi)~=0)*(beta(2:end)-beta0)'*(T*...
+            [0,ones(1,p)]*(Xtilde'*Xtilde)^-1*Psi*...
+            (Xtilde'*Xtilde)^-1*[0,ones(1,p)]')^-1*...
+            (beta(2:end)-beta0);
+        reject_pp(i) = Tw>cv_pp;
+    end
+
+    power_cmax(n_b) = mean(reject_cmax);
+    power_pp(n_b) = mean(reject_pp);
+end
+
+save har_size_pp
