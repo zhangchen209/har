@@ -1,4 +1,4 @@
 # har
 
-This are the R and matlab code for the HAR inference project
+This repository contains the R and matlab code for the HAR inference project
 
